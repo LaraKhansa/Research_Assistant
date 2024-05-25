@@ -28,6 +28,10 @@ This the heart of the project, where the magic happens. This module is responsib
 
 Then, it provides answer_query method, which gets the answer from the retrieval chain and saves chat history.
 
+*Chatbot Architecture Overview:*
+
+![Chatbot Architecture](chatbot_architecture.jpeg)
+
 ### 4. App:
 All the project functionalities  are integrated into one Gradio interface, to provide an intuitive and interactive experience for the users. The interface consists of 3 main tabs:
 
