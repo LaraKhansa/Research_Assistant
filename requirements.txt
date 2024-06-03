@@ -9,3 +9,8 @@ weasyprint
 bs4
 googlesearch
 aiohttp
+gtts
+SpeechRecognition
+PyAudio
+scipy
+soundfile

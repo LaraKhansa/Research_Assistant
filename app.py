@@ -4,6 +4,7 @@ from scraper import scrape_websites
 from chatbot import create_chain, answer_query
 from langchain_core.messages import HumanMessage, AIMessage
 from pdf_converter import create_pdf
+from speech import str_to_audio, audio_to_text
 
 
 data = None
@@ -14,6 +15,24 @@ chains = [None]
 
 def load(pdf_doc):
     return create_chain(chains, pdf_doc, use_local_model=True)
+
+
+def answer_voice(query, chat_history=[]):
+    prepared_history = []
+    for a, b in chat_history:
+        prepared_history.append(HumanMessage(content=a))
+        prepared_history.append(AIMessage(content=b))
+    try:
+        query = audio_to_text(query)
+    except Exception as e:
+        # Replace query/answer values in case an error happens
+        query = 'Unaudible voice'
+        answer = str(e) if str(e) else 'Sorry, an error occured!'
+        audio = str_to_audio(answer)
+        return chat_history + [(query, answer)], audio
+    answer = answer_query(chain=chains[0], query=query, chat_history=prepared_history)
+    audio = str_to_audio(answer)
+    return chat_history + [(query, answer)], audio
 
 
 def answer(query, chat_history=[]):
@@ -108,6 +127,16 @@ with gr.Blocks(css=css, theme=theme) as demo:
             
             #Optional
             user_input.submit(answer, inputs=[user_input, chatbot], outputs=[user_input, chatbot])
+
+    with gr.Tab('Talk with your PDF'):
+        with gr.Column():
+            chatbot = gr.Chatbot(visible=False)
+            audio = gr.Audio(type='numpy')
+            user_input = gr.Audio(sources='microphone', type='numpy')
+            submit_query = gr.Button("submit")
+
+            submit_query.click(answer_voice, inputs=[user_input, chatbot], outputs=[chatbot, audio])
+
             
 
 if __name__ == "__main__":
