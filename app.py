@@ -1,27 +1,33 @@
 import gradio as gr
 import pyperclip
 from scraper import scrape_websites
-from chatbot import create_chain, answer_query
+from chatbot import ConversationalRAGModel
 from langchain_core.messages import HumanMessage, AIMessage
-from pdf_converter import create_pdf
+# from pdf_converter import create_pdf
 from speech import str_to_audio, audio_to_text
 
+def create_pdf():pass
 
+# data variable to save scraped data
 data = None
-chains = [None]
+# create chatbot model instance
+chatbot_model = ConversationalRAGModel(use_local_model=False)
 
 
+def load(pdf_docs: list) -> str:
+    """
+    Load the pdfs into the chatbot, so it can answer questions based on those files.
+    """
+    if not pdf_docs:
+        chatbot_model.reset()
+        return 'You must convert or upload a pdf first'
+    chatbot_model.create_chain(pdf_docs)
+    return 'Document has successfully been loaded'
 
 
-def load(pdf_doc):
-    return create_chain(chains, pdf_doc, use_local_model=True)
-
-
-def answer_voice(query, chat_history=[]):
-    prepared_history = []
-    for a, b in chat_history:
-        prepared_history.append(HumanMessage(content=a))
-        prepared_history.append(AIMessage(content=b))
+def answer_voice(query, chat_history=None):
+    if chat_history is None:
+        chat_history = []
     try:
         query = audio_to_text(query)
     except Exception as e:
@@ -30,21 +36,22 @@ def answer_voice(query, chat_history=[]):
         answer = str(e) if str(e) else 'Sorry, an error occured!'
         audio = str_to_audio(answer)
         return chat_history + [(query, answer)], audio
-    answer = answer_query(chain=chains[0], query=query, chat_history=prepared_history)
+    answer = chatbot_model.answer(query=query)
     audio = str_to_audio(answer)
     return chat_history + [(query, answer)], audio
 
 
-def answer(query, chat_history=[]):
-    prepared_history = []
-    for a, b in chat_history:
-        prepared_history.append(HumanMessage(content=a))
-        prepared_history.append(AIMessage(content=b))
-    answer = answer_query(chain=chains[0], query=query, chat_history=prepared_history)
+def answer(query: str, chat_history=None):
+    """
+    Returns the given chat history after adding the model answer on the given query
+    """
+    if not chat_history:
+        chat_history = []
+    answer = chatbot_model.answer(query=query)
     return '', chat_history + [(query, answer)]
 
 
-async def scrape(topic, num_results):
+async def scrape(topic: str, num_results: int):
     global data
     results = await scrape_websites(topic, num_results)
     data = results
@@ -52,14 +59,14 @@ async def scrape(topic, num_results):
     return gr.update(choices=choices, value=None)
 
 
-def update_outlines(index):
+def update_outlines(index: int) -> str:
     if index:
         return data[index]
     else:
         return 'choose a source to see its outlines'
 
 
-def copy_curr_page_link(curr_page_index):
+def copy_curr_page_link(curr_page_index: int) -> str:
     if data and curr_page_index:
         page_details = data[curr_page_index]
         page_link = page_details.split('\n')[1].split(' ')[1]
@@ -101,41 +108,38 @@ with gr.Blocks(css=css, theme=theme) as demo:
             copy_button.click(copy_curr_page_link, inputs=websites_dropdown, outputs=text_output)
 
     with gr.Tab("Convert To PDF"):
-        with gr.Column():
-            url_input = gr.Textbox(label="Insert URL of webpage you want to convert to pdf")
-            pdf_button = gr.Button("Convert")
-            gr.Markdown('or', elem_classes='centered')
-            pdf_doc = gr.File(label="Upload a pdf directly from your device:", file_types=['.pdf', '.docx'],type='filepath')
+        url_input = gr.Textbox(label="Insert URL of webpage you want to convert to pdf")
+        pdf_button = gr.Button("Convert")
+        gr.Markdown('or', elem_classes='centered')
+        pdf_docs = gr.File(label="Upload a pdf directly from your device:", file_types=['.pdf', '.docx'], type='filepath', file_count='multiple')
 
-            with gr.Row():
-                load_pdf = gr.Button('Load pdf file')
-                status = gr.Textbox(label="Status", placeholder='', interactive=False)
+        with gr.Row():
+            load_pdf = gr.Button('Load pdf file')
+            status = gr.Textbox(label="Status", placeholder='', interactive=False)
 
-            load_pdf.click(load, inputs=pdf_doc, outputs=status)
-            pdf_button.click(create_pdf, inputs=url_input, outputs=pdf_doc)
+        load_pdf.click(load, inputs=pdf_docs, outputs=status)
+        pdf_button.click(create_pdf, inputs=url_input, outputs=pdf_docs)
 
     with gr.Tab('Chat with your PDF'):
-        with gr.Column():
-            chatbot = gr.Chatbot()
-            user_input = gr.Textbox(label="type in your question")
-            with gr.Row():
-                submit_query = gr.Button("submit")
-                clear = gr.ClearButton([user_input, chatbot])
+        chatbot = gr.Chatbot()
+        user_input = gr.Textbox(label="type in your question")
+        with gr.Row():
+            submit_query = gr.Button("submit")
+            clear = gr.ClearButton([user_input, chatbot])
 
-            
-            submit_query.click(answer, inputs=[user_input, chatbot], outputs=[user_input, chatbot])
-            
-            #Optional
-            user_input.submit(answer, inputs=[user_input, chatbot], outputs=[user_input, chatbot])
+        
+        submit_query.click(answer, inputs=[user_input, chatbot], outputs=[user_input, chatbot])
+        
+        #Optional
+        user_input.submit(answer, inputs=[user_input, chatbot], outputs=[user_input, chatbot])
 
     with gr.Tab('Talk with your PDF'):
-        with gr.Column():
-            chatbot = gr.Chatbot(visible=False)
-            audio = gr.Audio(type='numpy')
-            user_input = gr.Audio(sources='microphone', type='numpy')
-            submit_query = gr.Button("submit")
+        chatbot = gr.Chatbot(visible=False)
+        audio = gr.Audio(type='numpy')
+        user_input = gr.Audio(sources='microphone', type='numpy')
+        submit_query = gr.Button("submit")
 
-            submit_query.click(answer_voice, inputs=[user_input, chatbot], outputs=[chatbot, audio])
+        submit_query.click(answer_voice, inputs=[user_input, chatbot], outputs=[chatbot, audio])
 
             
 
