@@ -2,11 +2,9 @@ import gradio as gr
 import pyperclip
 from scraper import scrape_websites
 from chatbot import ConversationalRAGModel
-from langchain_core.messages import HumanMessage, AIMessage
-# from pdf_converter import create_pdf
+from md_converter import create_markdown
 from speech import str_to_audio, audio_to_text
 
-def create_pdf():pass
 
 # data variable to save scraped data
 data = None
@@ -14,14 +12,14 @@ data = None
 chatbot_model = ConversationalRAGModel(use_local_model=False)
 
 
-def load(pdf_docs: list) -> str:
+def load(docs: list) -> str:
     """
-    Load the pdfs into the chatbot, so it can answer questions based on those files.
+    Load the documents into the chatbot, so it can answer questions based on those files.
     """
-    if not pdf_docs:
+    if not docs:
         chatbot_model.reset()
-        return 'You must convert or upload a pdf first'
-    chatbot_model.create_chain(pdf_docs)
+        return 'You must convert or upload a document first'
+    chatbot_model.create_chain(docs)
     return 'Document has successfully been loaded'
 
 
@@ -60,7 +58,7 @@ async def scrape(topic: str, num_results: int):
 
 
 def update_outlines(index: int) -> str:
-    if index:
+    if index is not None:
         return data[index]
     else:
         return 'choose a source to see its outlines'
@@ -72,6 +70,15 @@ def copy_curr_page_link(curr_page_index: int) -> str:
         page_link = page_details.split('\n')[1].split(' ')[1]
         pyperclip.copy(page_link)
     return update_outlines(curr_page_index)
+
+
+async def add_markdown(url: str, docs: list) -> str:
+    filepath = await create_markdown(url)
+    if docs:
+        docs.append(filepath)
+    else:
+        docs = [filepath]
+    return docs
 
 
 html = """
@@ -107,20 +114,20 @@ with gr.Blocks(css=css, theme=theme) as demo:
             websites_dropdown.change(fn=update_outlines, inputs=websites_dropdown, outputs=text_output)
             copy_button.click(copy_curr_page_link, inputs=websites_dropdown, outputs=text_output)
 
-    with gr.Tab("Convert To PDF"):
-        url_input = gr.Textbox(label="Insert URL of webpage you want to convert to pdf")
-        pdf_button = gr.Button("Convert")
+    with gr.Tab("Convert To Markdown"):
+        url_input = gr.Textbox(label="Insert URL of webpage you want to convert to markdown")
+        doc_button = gr.Button("Convert")
         gr.Markdown('or', elem_classes='centered')
-        pdf_docs = gr.File(label="Upload a pdf directly from your device:", file_types=['.pdf', '.docx'], type='filepath', file_count='multiple')
+        docs = gr.File(label="Upload a document directly from your device:", file_types=['.pdf', '.docx', '.md', '.txt'], type='filepath', file_count='multiple')
 
         with gr.Row():
-            load_pdf = gr.Button('Load pdf file')
+            load_docs = gr.Button('Load files')
             status = gr.Textbox(label="Status", placeholder='', interactive=False)
 
-        load_pdf.click(load, inputs=pdf_docs, outputs=status)
-        pdf_button.click(create_pdf, inputs=url_input, outputs=pdf_docs)
+        load_docs.click(load, inputs=docs, outputs=status)
+        doc_button.click(add_markdown, inputs=[url_input, docs], outputs=docs)
 
-    with gr.Tab('Chat with your PDF'):
+    with gr.Tab('Chat with your Docs'):
         chatbot = gr.Chatbot()
         user_input = gr.Textbox(label="type in your question")
         with gr.Row():
@@ -133,7 +140,7 @@ with gr.Blocks(css=css, theme=theme) as demo:
         #Optional
         user_input.submit(answer, inputs=[user_input, chatbot], outputs=[user_input, chatbot])
 
-    with gr.Tab('Talk with your PDF'):
+    with gr.Tab('Talk with your Docs'):
         chatbot = gr.Chatbot(visible=False)
         audio = gr.Audio(type='numpy')
         user_input = gr.Audio(sources='microphone', type='numpy')

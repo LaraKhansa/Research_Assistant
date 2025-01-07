@@ -1,12 +1,14 @@
 import os
 import dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEndpoint, HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
+from chromadb.api import client as chromadb_client
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_retrieval_chain, create_history_aware_retriever
-from langchain_community.document_loaders import PyMuPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader, TextLoader
+from langchain_community.llms import HuggingFaceEndpoint
 from langchain_community.llms import Ollama
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -29,12 +31,15 @@ class ConversationalRAGModel():
         # chat history to be passed to the model along with every query
         self.chat_history = None
 
-    def create_chain(self, pdf_docs: list) -> None:
+    def create_chain(self, docs: list) -> None:
         """
         This method creates the essential conversational_rag_chain attribute which can
         be used later to answer queries within a conversation based on the given documents
         """
-        db = create_vector_db(pdf_docs)
+        # clear cache if it exists
+        if hasattr(self, 'db') and self.db:
+            chromadb_client.SharedSystemClient.clear_system_cache()
+        self.db = create_vector_db(docs)
         prompt_search_query = ChatPromptTemplate.from_messages([
             MessagesPlaceholder(
             variable_name="chat_history"),
@@ -42,9 +47,9 @@ class ConversationalRAGModel():
             ("user",
             "Given the above conversation, generate a search query to look up to get information relevant to the conversation")
         ])
-        retriever_chain = create_history_aware_retriever(self.llm, db.as_retriever(), prompt_search_query)
+        retriever_chain = create_history_aware_retriever(self.llm, self.db.as_retriever(), prompt_search_query)
         prompt_get_answer = ChatPromptTemplate.from_messages([
-            ("system", "Answer the user's questions based on the below context:\\n\\n{context}"),
+            ("system", "Answer the user's question clearly and concisely using the following context:\\n\\n{context}"),
             MessagesPlaceholder(variable_name="chat_history"),
             ("user", "{input}"),
         ])
@@ -87,15 +92,15 @@ def create_model(local: bool):
     return llm
 
 
-def create_vector_db(pdf_docs: list) -> Chroma:
+def create_vector_db(docs: list) -> Chroma:
     """
-    Creates a vector database from a list of pdf documents.
+    Creates a vector database from a list of documents.
     """
     # divide documents into chunks
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     text = []
-    for pdf_doc in pdf_docs:
-        text.extend(text_splitter.split_documents(load_document(pdf_doc)))
+    for doc in docs:
+        text.extend(text_splitter.split_documents(load_document(doc)))
     # create embedding function
     embedding = HuggingFaceEmbeddings()
     db = Chroma.from_documents(text, embedding)
@@ -103,9 +108,12 @@ def create_vector_db(pdf_docs: list) -> Chroma:
 
 
 def load_document(doc):
-    loader = PyMuPDFLoader(doc.name)
-    document = loader.load()
-    return document
+    print(doc)
+    if doc.endswith('.md') or doc.endswith('.txt'):
+        loader = TextLoader(doc, encoding='utf-8')
+    else:
+        loader = PyMuPDFLoader(doc.name)
+    return loader.load()
 
 
 def save_history(history):

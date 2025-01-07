@@ -60,10 +60,12 @@ Includes audio input and output components for user-bot conversation. Users can 
    ```sh
    git clone https://github.com/LaraKhansa/Research_Assistant.git
 
-3. Install the necessary dependencies:
+3. Install the necessary dependencies. Make sure you have python>=3.9.9 and <=3.13:
 
    ```sh
    pip install -r requirements.txt
+   crawl4ai-setup
+   ```
 
 ### Running the App
  To start the Gradio interface, run the following command:
