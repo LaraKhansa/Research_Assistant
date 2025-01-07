@@ -1,7 +1,7 @@
 import os
 import logging
 from crawl4ai import AsyncWebCrawler
-from scraper import extract_main_domain_from_url, extract_title_from_url
+from utils.scraper import extract_main_domain_from_url, extract_title_from_url
 
 
 logging.basicConfig(level=logging.INFO)

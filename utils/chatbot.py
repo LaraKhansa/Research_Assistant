@@ -82,7 +82,7 @@ class ConversationalRAGModel():
 
 def create_model(local: bool):
     if local:
-        llm = Ollama(model='phi')
+        llm = Ollama(model='phi3')
     else:
         llm = HuggingFaceEndpoint(
             repo_id="mistralai/Mixtral-8x7B-Instruct-v0.1",
