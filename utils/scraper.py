@@ -37,7 +37,7 @@ async def scrape_google(topic, num_results=15) -> list[str]:
     # Asynchronous HTTP session
     async with aiohttp.ClientSession() as session:
         # Perform Google search
-        search_results = search(topic, num=3 * num_results)
+        search_results = search(topic, num_results=3 * num_results)
         search_results = remove_duplicate_results(search_results)
         # Shuffle search results order
         random.shuffle(search_results)

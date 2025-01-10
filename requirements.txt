@@ -1,3 +1,4 @@
+python-dotenv
 gradio
 pyperclip
 chromadb
@@ -5,9 +6,10 @@ langchain
 langchain_community
 langchain_core
 sentence-transformers
-weasyprint
+crawl4ai
+pymupdf
 bs4
-googlesearch
+googlesearch-python
 aiohttp
 gtts
 SpeechRecognition
